@@ -46,6 +46,6 @@ class SocketServer:
             print("\r\nStopthe server...")
         # 서버소켓닫기
         self.sock.close()
-        if __name__=="__main__":
-            server=SocketServer()
-            server.run("127.0.0.1", 8000)
+if __name__=="__main__":
+    server=SocketServer()
+    server.run("127.0.0.1", 8000)

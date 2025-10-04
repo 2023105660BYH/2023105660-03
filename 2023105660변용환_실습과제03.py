@@ -35,15 +35,78 @@ class SocketServer:
                 clnt_sock.settimeout(5.0)  # 타임아웃설정(5초)
                 print("Request message...\r\n")
                 
-                response=b"" # 여기에구현하세요 
+                response=b"" 
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+                filename = f"request_{timestamp}.bin"
+                filepath = os.path.join(self.DIR_PATH, filename)
+
+
+                with open(filepath, 'wb') as f:
+                    while True:
+                        try:
+                            data = clnt_sock.recv(self.bufsize)
+                            if not data:
+                                break
+                            response+=data
+                            f.write(data)
+                            if len(data) < self.bufsize:
+                                break
+                        except socket.timeout:
+                            break
                 
+                header_end = response.find(b'\r\n\r\n')
+                if header_end == -1:
+                    return
+
+                headers = response[:header_end].decode(errors='ignore')
+                body = response[header_end + 4:]
+                boundary = None
+                for line in headers.split('\r\n'):
+                    if line.lower().startswith('content-type: multipart/form-data'):
+                        parts = line.split('boundary=')
+                        if len(parts) == 2:
+                            boundary = '--' + parts[1].strip()
+                            break
+                if not boundary:
+                    return
+
+                boundary_bytes = boundary.encode()
+                parts = body.split(boundary_bytes)
+
+                for part in parts:
+                    if b'filename="' in part:
+                        part_header_end = part.find(b'\r\n\r\n')
+                        if part_header_end == -1:
+                            continue
+                        part_headers = part[:part_header_end].decode(errors='ignore')
+                        file_content = part[part_header_end + 4:]
+                        filename = 'uploaded_image'
+                        for line in part_headers.split('\r\n'):
+                            if 'filename="' in line:
+                                start = line.find('filename="') + len('filename="')
+                                end = line.find('"', start)
+                                filename = line[start:end]
+                                break
+                        if file_content.endswith(b'\r\n'):
+                            file_content = file_content[:-2]
+                        if file_content.endswith(b'--'):
+                            file_content = file_content[:-2]
+                        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+                        filename_only = os.path.basename(filename)
+                        save_name = f"uploaded_{timestamp}_{filename_only}"
+                        save_path = os.path.join(self.DIR_PATH, save_name)
+                        with open(save_path, 'wb') as f:
+                            f.write(file_content)  
+                        break
+                        
                 # 응답전송
+                print(response.decode(errors="replace"))
                 clnt_sock.sendall(self.RESPONSE)
                 
                 # 클라이언트소켓닫기
                 clnt_sock.close()
         except KeyboardInterrupt:
-            print("\r\nStopthe server...")
+            print("\r\nStop the server...")
         # 서버소켓닫기
         self.sock.close()
 if __name__=="__main__":
